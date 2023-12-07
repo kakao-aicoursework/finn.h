@@ -4,16 +4,55 @@ import os
 import openai
 import tkinter as tk
 import pandas as pd
+import chromadb
 from tkinter import scrolledtext
 import tkinter.filedialog as filedialog
 
 openai.api_key = os.environ["API_KEY"]
 
 
+db_client = chromadb.PersistentClient()
+collection = db_client.get_or_create_collection(
+    name="kakao",
+    metadata={"hnsw:space": "cosine"}
+)
+
+
 def get_data(data_type):
-    print("get data ...")
     with open(f"data/{data_type}.txt", "r") as fin:
         return fin.read()
+
+
+def store_data_to_db():
+    print("store data to chroma ... ")
+    data_types = ["kakao_social", "kakao_sink", "kakao_channel"]
+    for data_type in data_types:
+        data = get_data(data_type)
+        
+        ids = []
+        doc_meta = []
+        docs = []
+        for chunk in data.split("\n#")[2:]:
+            title = chunk.split("\n")[0].replace(" ", "-").strip()
+            _id = f"{data_type}-{title}"
+            _doc = chunk.strip()
+
+            ids.append(_id)
+            docs.append(_doc)
+
+    collection.add(
+        documents=docs,
+        ids=ids,
+    )
+
+
+def get_data_from_db(data_type, query, n_results=2):
+    print("get data from chroma ...")
+    results = collection.query(
+        query_texts=[f"{data_type} {query}"],
+        n_results=n_results,
+    )
+    return results["documents"][0]
 
 
 def send_message(message_log, functions, gpt_model="gpt-3.5-turbo", temperature=0):
@@ -30,7 +69,7 @@ def send_message(message_log, functions, gpt_model="gpt-3.5-turbo", temperature=
     if response_message.get("function_call"):
         print("run function call ...")
         available_functions = {
-            "get_data": get_data,
+            "get_data_from_db": get_data_from_db,
         }
         function_name = response_message["function_call"]["name"]
         fuction_to_call = available_functions[function_name]
@@ -45,6 +84,7 @@ def send_message(message_log, functions, gpt_model="gpt-3.5-turbo", temperature=
                 "content": function_response,
             }
         )
+        
         response = openai.ChatCompletion.create(
             model=gpt_model,
             messages=message_log,
@@ -67,18 +107,22 @@ def main():
 
     functions = [
         {
-            "name": "get_data",
+            "name": "get_data_from_db",
             "description": "카카오 소셜, 카카오 싱크, 카카오 채널과 관련된 데이터를 가져옵니다.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "data_type": {
                         "type": "string",
-                        "description": "질문과 관련된 데이터 타입",
+                        "description": "요청과 관련된 데이터 타입",
                         "enum": ["kakao_sink", "kakao_social", "kakao_channel"],
                     },
+                    "query": {
+                        "type": "string",
+                        "description": "요청 하는 내용",
+                    }
                 },
-                "required": ["data_type"],
+                "required": ["data_type", "query"],
             },
         }
     ]
@@ -162,4 +206,5 @@ def main():
 
 
 if __name__ == "__main__":
+    store_data_to_db()
     main()
