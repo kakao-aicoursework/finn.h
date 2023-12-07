@@ -10,6 +10,15 @@ import tkinter.filedialog as filedialog
 openai.api_key = os.environ["API_KEY"]
 
 
+def get_all_data():
+    files = ["kakao_social.txt", "kakao_sink.txt", "kakao_channel.txt"]
+    data = []
+    for file in files:
+        with open(f"data/{file}", "r") as fin:
+            data.append(fin.read())
+    return data
+
+
 def send_message(message_log, gpt_model="gpt-3.5-turbo", temperature=0):
     response = openai.ChatCompletion.create(
         model=gpt_model,
@@ -24,7 +33,7 @@ def main():
         {
             "role": "system",
             "content": '''
-            당신은 친절한 Q&A 봇입니다. 사용자의 질문에 답해주세요.
+            당신은 친절한 Q&A 봇입니다. Context를 참고해서 사용자의 질문에 답해주세요.
             '''
         }
     ]
@@ -60,6 +69,9 @@ def main():
         return popup
 
     def on_send():
+        context = {"role": "user", "content": f"Context: get_all_data"}
+        message_log.append(context)
+
         user_input = user_entry.get()
         user_entry.delete(0, tk.END)
 
@@ -87,8 +99,8 @@ def main():
     font = ("맑은 고딕", 10)
 
     conversation = scrolledtext.ScrolledText(window, wrap=tk.WORD, bg='#f0f0f0', font=font)
-    conversation.tag_configure("user", background="#c9daf8")
-    conversation.tag_configure("assistant", background="#e4e4e4")
+    conversation.tag_configure("user", background="black")
+    conversation.tag_configure("assistant", background="red")
     conversation.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     input_frame = tk.Frame(window) 
