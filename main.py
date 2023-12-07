@@ -10,21 +10,47 @@ import tkinter.filedialog as filedialog
 openai.api_key = os.environ["API_KEY"]
 
 
-def get_all_data():
-    files = ["kakao_social.txt", "kakao_sink.txt", "kakao_channel.txt"]
-    data = []
-    for file in files:
-        with open(f"data/{file}", "r") as fin:
-            data.append(fin.read())
-    return data
+def get_data(data_type):
+    print("get data ...")
+    with open(f"data/{data_type}.txt", "r") as fin:
+        return fin.read()
 
 
-def send_message(message_log, gpt_model="gpt-3.5-turbo", temperature=0):
+def send_message(message_log, functions, gpt_model="gpt-3.5-turbo", temperature=0):
     response = openai.ChatCompletion.create(
         model=gpt_model,
         messages=message_log,
         temperature=temperature,
+        functions=functions,
+        function_call="auto",
     )
+
+    response_message = response["choices"][0]["message"]
+
+    if response_message.get("function_call"):
+        print("run function call ...")
+        available_functions = {
+            "get_data": get_data,
+        }
+        function_name = response_message["function_call"]["name"]
+        fuction_to_call = available_functions[function_name]
+        function_args = json.loads(response_message["function_call"]["arguments"])
+        function_response = fuction_to_call(**function_args)
+
+        message_log.append(response_message)
+        message_log.append(
+            {
+                "role": "function",
+                "name": function_name,
+                "content": function_response,
+            }
+        )
+        response = openai.ChatCompletion.create(
+            model=gpt_model,
+            messages=message_log,
+            temperature=temperature,
+        )
+
     return response.choices[0].message.content
 
 
@@ -35,6 +61,25 @@ def main():
             "content": '''
             당신은 친절한 Q&A 봇입니다. Context를 참고해서 사용자의 질문에 답해주세요.
             '''
+        }
+    ]
+
+
+    functions = [
+        {
+            "name": "get_data",
+            "description": "카카오 소셜, 카카오 싱크, 카카오 채널과 관련된 데이터를 가져옵니다.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "data_type": {
+                        "type": "string",
+                        "description": "질문과 관련된 데이터 타입",
+                        "enum": ["kakao_sink", "kakao_social", "kakao_channel"],
+                    },
+                },
+                "required": ["data_type"],
+            },
         }
     ]
 
@@ -84,7 +129,7 @@ def main():
         conversation.insert(tk.END, f"You: {user_input}\n", "user")  # 이동
         thinking_popup = show_popup_message(window, "처리중...")
         window.update_idletasks()
-        response = send_message(message_log)
+        response = send_message(message_log, functions)
         thinking_popup.destroy()
 
         message_log.append({"role": "assistant", "content": response})
