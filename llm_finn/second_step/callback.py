@@ -12,16 +12,31 @@ from dto import ChatbotRequest
 from db import get_kakao_sink_data
 
 openai.api_key = os.environ["API_KEY"]
-SYSTEM_MSG = "당신은 카카오 서비스 제공자입니다. 사용자 질문에 친절하게 답해주세요."
-llm = ChatOpenAI(temperature=0)
+SYSTEM_MSG = """
+You are a Kakao service provider. Please kindly answer user questions.
+The conditions below must be met.
+- Please answer in Korean.
+- Please answer in Markdown format.
+- Please summarize your answer in about 200 characters.
+"""
+llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-16k")
 llm_match_chain = LLMMathChain.from_llm(llm=llm, verbose=True)
 tools = [
     Tool(
         name="get_kakao_sink_data",
         func=get_kakao_sink_data,
-        description="카카오 싱크에 관한 질문에 답할 때 유용합니다."
+        description="Used for searches related to Kakao Sync. Get information about features, usage process, introduction process, and setup method."
     )
 ]
+
+agent = initialize_agent(
+    tools,
+    llm,
+    agent=AgentType.OPENAI_FUNCTIONS,  # zero shot으로 하면 영어로 답하고 무한 루프 돎
+    verbose=True,
+    handle_parsing_errors=True,
+    max_iterations=4,  # 무한 루프 방지
+)
 
 
 async def callback_handler(request: ChatbotRequest) -> dict:
@@ -30,9 +45,7 @@ async def callback_handler(request: ChatbotRequest) -> dict:
         {"role": "user", "content": request.userRequest.utterance},
     ]
 
-    agent = initialize_agent(
-        tools, llm, agent="zero-shot-react-description", verbose=True
-    )
+    
 
     output_text = agent.run(messages)
     await response_callback(output_text, request)
