@@ -1,32 +1,45 @@
-import os
-from dto import ChatbotRequest
-from samples import list_card
 import aiohttp
+import os
 import time
 import logging
-import openai
 
-# 환경 변수 처리 필요!
+import openai
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import initialize_agent, AgentType, Tool
+from langchain.chains import LLMMathChain
+
+from dto import ChatbotRequest
+from db import get_kakao_sink_data
+
 openai.api_key = os.environ["API_KEY"]
-SYSTEM_MSG = "당신은 카카오 서비스 제공자입니다."
-logger = logging.getLogger("Callback")
+SYSTEM_MSG = "당신은 카카오 서비스 제공자입니다. 사용자 질문에 친절하게 답해주세요."
+llm = ChatOpenAI(temperature=0)
+llm_match_chain = LLMMathChain.from_llm(llm=llm, verbose=True)
+tools = [
+    Tool(
+        name="get_kakao_sink_data",
+        func=get_kakao_sink_data,
+        description="카카오 싱크에 관한 질문에 답할 때 유용합니다."
+    )
+]
+
 
 async def callback_handler(request: ChatbotRequest) -> dict:
+    messages = [
+        {"role": "system", "content": SYSTEM_MSG},
+        {"role": "user", "content": request.userRequest.utterance},
+    ]
 
-    # ===================== start =================================
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": SYSTEM_MSG},
-            {"role": "user", "content": request.userRequest.utterance},
-        ],
-        temperature=0,
+    agent = initialize_agent(
+        tools, llm, agent="zero-shot-react-description", verbose=True
     )
-    # focus
-    output_text = response.choices[0].message.content
 
-   # 참고링크 통해 payload 구조 확인 가능
-    payload = {
+    output_text = agent.run(messages)
+    await response_callback(output_text, request)
+
+
+async def response_callback(output_text, request):
+	payload = {
         "version": "2.0",
         "template": {
             "outputs": [
@@ -38,15 +51,10 @@ async def callback_handler(request: ChatbotRequest) -> dict:
             ]
         }
     }
-    # ===================== end =================================
-    # 참고링크1 : https://kakaobusiness.gitbook.io/main/tool/chatbot/skill_guide/ai_chatbot_callback_guide
-    # 참고링크1 : https://kakaobusiness.gitbook.io/main/tool/chatbot/skill_guide/answer_json_format
+	url = request.userRequest.callbackUrl
 
-    time.sleep(1.0)
+	if url:
+		async with aiohttp.ClientSession() as session:
+			async with session.post(url=url, json=payload, ssl=False) as resp:
+				await resp.json()
 
-    url = request.userRequest.callbackUrl
-
-    if url:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url=url, json=payload, ssl=False) as resp:
-                await resp.json()
