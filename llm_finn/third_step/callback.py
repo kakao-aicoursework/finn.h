@@ -10,6 +10,7 @@ from langchain.prompts.chat import ChatPromptTemplate
 
 from dto import ChatbotRequest
 from db import query_db
+from history import load_conversation_history, get_chat_history, log_user_message, log_bot_message
 
 assert os.environ["OPENAI_API_KEY"] is not None
 
@@ -55,17 +56,25 @@ default_chain = ConversationChain(llm=llm)
 
 
 def callback_handler(request: ChatbotRequest) -> dict:
+    conversation_id = request.userRequest.user.id
+    
     query = request.userRequest.utterance
+    context = {"query": query, "chat_history": get_chat_history(conversation_id)}
 
-    intent = parse_intent_chain.run(query)
+    intent = parse_intent_chain.run(context)
     if intent in ["kakao_sync", "kakao_channel", "kakao_social"]:
-        info = query_db(query)
-        context = {"information": info, "query": query}
+        info = query_db(query)  # search db
+        context.update({"information": info})
+
         output = answer_chain.run(context)
     else:
-        output = default_chain.run(query)
-
+        output = default_chain.run(context)
     response_callback(output, request)
+
+    # save history
+    history_file = load_conversation_history(conversation_id)
+    log_user_message(history_file, user_message)
+    log_bot_message(history_file, answer)
 
 
 def response_callback(output_text, request):
