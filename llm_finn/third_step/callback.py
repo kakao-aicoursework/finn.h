@@ -1,81 +1,83 @@
-import aiohttp
 import os
 import time
 import logging
 
-import openai
+import requests
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType, Tool
-from langchain.chains import LLMMathChain
+from langchain.chains import ConversationChain, LLMChain
+from langchain.prompts.chat import ChatPromptTemplate
 
 from dto import ChatbotRequest
-from db import get_kakao_sync_data, get_kakao_channel_data, get_kakao_social_data
+from db import query_db
 
-openai.api_key = os.environ["API_KEY"]
-SYSTEM_MSG = """
-You are a Kakao service provider. Please kindly answer user questions.
-The conditions below must be met.
-- Please answer in Korean.
-- Please answer structurally.
-- Please summarize your answer in about 200 characters.
-"""
-llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo-16k")
-llm_match_chain = LLMMathChain.from_llm(llm=llm, verbose=True)
-tools = [
-    Tool(
-        name="get_kakao_sync_data",
-        func=get_kakao_sync_data,
-        description="Used for searches related to Kakao Sync(카카오 싱크).",
-    ),
-    Tool(
-        name="get_kakao_channel_data",
-        func=get_kakao_channel_data,
-        description="Used for searches related to Kakao Channel(카카오 채널).",
-    ),
-    Tool(
-        name="get_kakao_social_data",
-        func=get_kakao_social_data,
-        description="Used for searches related to Kakao Social(카카오 소셜).",
-    ),
-]
+assert os.environ["OPENAI_API_KEY"] is not None
 
-agent = initialize_agent(
-    tools,
-    llm,
-    agent=AgentType.OPENAI_FUNCTIONS,  # zero shot으로 하면 영어로 답하고 무한 루프 돎
+
+llm = ChatOpenAI(temperature=0, max_tokens=250, model="gpt-3.5-turbo")
+
+parse_intent_chain = LLMChain(
+    llm=llm,
+    prompt=ChatPromptTemplate.from_template(
+        template = """
+            Your job is to select one intent from the <intent_list>.
+
+            <intent_list>
+            1. kakao_sync: question about kakao sync(카카오 싱크).
+            2. kakao_channel: question about kakao channel(카카오 채널).
+            3. kakao_social: question about kakao social(카카오 소셜).
+            </intent_list>
+
+            User: {user_message}
+            Intent: 
+        """
+    ),
     verbose=True,
-    handle_parsing_errors=True,
-    max_iterations=4,  # 무한 루프 방지
 )
+answer_chain = LLMChain(
+    llm=llm,
+    prompt=ChatPromptTemplate.from_template(
+        template = """
+            Your job is to answer the query based on information.
+
+            <Information>
+            {information}
+            <Iinformation>
+
+            <Query>
+            {query}
+            </Query>
+        """
+    ),
+    verbose=True
+)
+default_chain = ConversationChain(llm=llm)
 
 
-async def callback_handler(request: ChatbotRequest) -> dict:
-    messages = [
-        {"role": "system", "content": SYSTEM_MSG},
-        {"role": "user", "content": request.userRequest.utterance},
-    ]
+def callback_handler(request: ChatbotRequest) -> dict:
+    query = request.userRequest.utterance
 
-    output_text = agent.run(messages)
-    await response_callback(output_text, request)
+    intent = parse_intent_chain.run(query)
+    if intent in ["kakao_sync", "kakao_channel", "kakao_social"]:
+        info = query_db(query)
+        context = {"information": info, "query": query}
+        output = answer_chain.run(context)
+    else:
+        output = default_chain.run(query)
+
+    response_callback(output, request)
 
 
-async def response_callback(output_text, request):
+def response_callback(output_text, request):
 	payload = {
         "version": "2.0",
         "template": {
             "outputs": [
-                {
-                    "simpleText": {
-                        "text": output_text
-                    }
-                }
+                { "simpleText": { "text": output_text } }
             ]
         }
     }
 	url = request.userRequest.callbackUrl
 
 	if url:
-		async with aiohttp.ClientSession() as session:
-			async with session.post(url=url, json=payload, ssl=False) as resp:
-				await resp.json()
-
+		requests.post(url=url, json=payload)
