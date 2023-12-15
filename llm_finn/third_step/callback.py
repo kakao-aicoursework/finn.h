@@ -29,7 +29,7 @@ parse_intent_chain = LLMChain(
             3. kakao_social: question about kakao social(카카오 소셜).
             </intent_list>
 
-            User: {user_message}
+            User: {query}
             Intent: 
         """
     ),
@@ -39,12 +39,13 @@ answer_chain = LLMChain(
     llm=llm,
     prompt=ChatPromptTemplate.from_template(
         template = """
-            Your job is to answer the query based on information.
+            Your job is to answer the query based on <information> and <chat_history>.
 
             <Information>
             {information}
             <Iinformation>
 
+            {chat_history}
             <Query>
             {query}
             </Query>
@@ -52,7 +53,19 @@ answer_chain = LLMChain(
     ),
     verbose=True
 )
-default_chain = ConversationChain(llm=llm)
+default_chain = LLMChain(
+    llm=llm,
+    prompt=ChatPromptTemplate.from_template(
+        template= """
+            Your job is to read the <query>, Answer the question very detailed.
+
+            {chat_history}
+            User: {query}
+            Answer:
+        """
+    ),
+    verbose=True,
+)
 
 
 def callback_handler(request: ChatbotRequest) -> dict:
@@ -73,8 +86,8 @@ def callback_handler(request: ChatbotRequest) -> dict:
 
     # save history
     history_file = load_conversation_history(conversation_id)
-    log_user_message(history_file, user_message)
-    log_bot_message(history_file, answer)
+    log_user_message(history_file, query)
+    log_bot_message(history_file, output)
 
 
 def response_callback(output_text, request):
