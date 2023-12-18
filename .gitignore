@@ -197,5 +197,7 @@ tags
 # End of https://www.toptal.com/developers/gitignore/api/python,vim
 
 
-chromadb
-history
+**/.chromadb/*
+!**/.chromadb/.gitkeep
+**/.history/*
+!**/.history/.gitkeep

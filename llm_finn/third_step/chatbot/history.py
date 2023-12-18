@@ -2,7 +2,7 @@ import os
 
 from langchain.memory import ConversationBufferMemory, FileChatMessageHistory
 
-HISTORY_DIR = "./history"
+HISTORY_DIR = "./.history"
 
 
 def load_conversation_history(conversation_id: str):

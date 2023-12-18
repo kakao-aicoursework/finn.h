@@ -1,10 +1,12 @@
+from os.path import dirname
+
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.document_loaders import TextLoader
 from langchain.vectorstores import Chroma
 from langchain.embeddings.openai import OpenAIEmbeddings
 
 CHROMA_COLLECTION_NAME = "kakao"
-CHROMA_PERSIST_DIR = "./chromadb"
+CHROMA_PERSIST_DIR = f"./.chromadb"
 
 
 def upload_embedding_from_file(file_path):
@@ -27,7 +29,7 @@ def upload_embedding_from_file(file_path):
 def upload_files():
     files = ["kakao_sync.txt", "kakao_channel.txt", "kakao_social.txt"]
     for file in files:
-        upload_embedding_from_file(f"data/{file}")
+        upload_embedding_from_file(f"{dirname(__file__)}/data/{file}")
 
 
 def query_db(query):

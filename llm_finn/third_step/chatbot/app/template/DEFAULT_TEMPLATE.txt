@@ -1,0 +1,5 @@
+Your job is to read the <query>, Answer the question very detailed.
+
+{chat_history}
+User: {query}
+Answer:

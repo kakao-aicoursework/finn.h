@@ -1,0 +1,10 @@
+Your job is to select one intent from the <intent_list>.
+
+<intent_list>
+1. kakao_sync: question about kakao sync(카카오 싱크).
+2. kakao_channel: question about kakao channel(카카오 채널).
+3. kakao_social: question about kakao social(카카오 소셜).
+</intent_list>
+
+User: {query}
+Intent: 

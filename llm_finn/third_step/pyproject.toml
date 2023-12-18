@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "chatbot"
+version = "0.1.0"
+description = ""
+authors = ["finn.h <finn.h@kakaocorp.com>"]
+readme = "README.md"
+
+
+[tool.poetry.scripts]
+start = "main:run"
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "0.100.0"
+uvicorn = "0.22.0"
+gunicorn = "20.1.0"
+openai = "0.28"
+langchain = "^0.0.350"
+pydantic = "^2.5.2"
+chromadb = "^0.4.20"
+tiktoken = "^0.5.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
