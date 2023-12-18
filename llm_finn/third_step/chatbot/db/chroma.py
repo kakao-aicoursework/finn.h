@@ -9,7 +9,8 @@ CHROMA_COLLECTION_NAME = "kakao"
 CHROMA_PERSIST_DIR = f"./.chromadb"
 
 
-def upload_embedding_from_file(file_path):
+def upload_embedding_from_file(intent):
+    file_path = f"{dirname(__file__)}/data/{intent}.txt"
     documents = TextLoader(file_path).load()
 
     text_splitter = CharacterTextSplitter(chunk_size=600, chunk_overlap=100)
@@ -20,23 +21,21 @@ def upload_embedding_from_file(file_path):
         docs,
         OpenAIEmbeddings(),
         collection_name=CHROMA_COLLECTION_NAME,
-        persist_directory=CHROMA_PERSIST_DIR,
+        persist_directory=f"{CHROMA_PERSIST_DIR}/{intent}",
         ids=ids,
     )
     print('db success')
 
 
 def upload_files():
-    files = ["kakao_sync.txt", "kakao_channel.txt", "kakao_social.txt"]
-    for file in files:
-        upload_embedding_from_file(f"{dirname(__file__)}/data/{file}")
+    intents = ["kakao_sync", "kakao_channel", "kakao_social"]
+    for intent in intents:
+        upload_embedding_from_file(intent)
 
 
-def query_db(query):
-    upload_files()
-
+def query_db(query, intent):
     db = Chroma(
-        persist_directory=CHROMA_PERSIST_DIR,
+        persist_directory=f"{CHROMA_PERSIST_DIR}/{intent}",
         embedding_function=OpenAIEmbeddings(),
         collection_name=CHROMA_COLLECTION_NAME,
     )

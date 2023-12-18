@@ -48,7 +48,7 @@ def callback_handler(request: ChatbotRequest) -> dict:
 
     intent = parse_intent_chain.run(context)
     if intent in ["kakao_sync", "kakao_channel", "kakao_social"]:
-        info = query_db(query)  # search db
+        info = query_db(query, intent)  # search db with intent
         context.update({"information": info})
 
         output = answer_chain.run(context)

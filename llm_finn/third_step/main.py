@@ -3,6 +3,8 @@ import logging
 
 import uvicorn
 
+from chatbot.db.chroma import upload_files
+
 
 def run():
     logging.basicConfig(
@@ -13,4 +15,5 @@ def run():
 
     assert os.environ["OPENAI_API_KEY"] is not None
 
+    upload_files()
     uvicorn.run("chatbot.api.skill:app", host="0.0.0.0", port=8000, reload=True)
